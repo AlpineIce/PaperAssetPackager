@@ -33,14 +33,33 @@ class PAPER_ASSET_PACKAGER_OT_package_operator(bpy.types.Operator):
     def poll(cls, context):
         return context.scene is not None
     
-    def get_unique_models(self, context):
-        #list of unique objects
-        unique_objects = []
+    def get_base_models(self, base_model_collection):
+        #return data
+        model_data = {}
         
         #iterate objects in scene
-        for object in context.scene.objects:
-            if object.type == "MESH" and object:
-                print("yay")
+        for object in base_model_collection.all_objects:
+            #verify object is mesh type
+            if object.type == "MESH":
+                #iterate vertex groups and create map of them first
+                groups = {}
+                for group in object.vertex_groups:
+                    #check if group is an LOD
+                    if("LOD" in group.name):
+                        split = group.name.split("LOD")
+                        groups[int(split[1])] = group.index
+                
+                #then iterate polygons and associate them with their LOD and material
+                for polygon in object.data.polygons:
+                    mat_slot = polygon.material_index
+                    indices = polygon.vertices
+                    
+                    print(mat_slot)
+                    
+    def get_model_instances(self, model_instance_collection):
+        for object in model_instance_collection.all_objects:
+            if object.type == "MESH":
+                print("Model Instance")
     
     def execute(self, context):
         #warning buffer
@@ -65,7 +84,9 @@ class PAPER_ASSET_PACKAGER_OT_package_operator(bpy.types.Operator):
         #print any warnings
         if len(msg_buffer): self.report({"WARNING"}, msg_buffer)
         
-        self.get_unique_models(context)
+        #get base models and model instances
+        models = self.get_base_models(bpy.data.collections[base_models_name])
+        model_instances = self.get_model_instances(bpy.data.collections[model_instances_name])
         
         return {'FINISHED'}
     
