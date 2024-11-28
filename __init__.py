@@ -27,10 +27,8 @@ import bpy
 #----------REGISTRATION----------#
 
 classes = (
-    package.PackageOperator,
-    package.PaperAssetPackagerPanel,
-    lod.PaperAssetPackagerLODPanel,
-    lod.PaperAssetPackagerLODList
+    package.PAPER_ASSET_PACKAGER_OT_package_operator,
+    package.PAPER_ASSET_PACKAGER_PT_package_main_panel
 )
 
 def register():
