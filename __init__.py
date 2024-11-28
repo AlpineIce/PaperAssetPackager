@@ -17,47 +17,29 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    importlib.reload(lod)
-    importlib.reload(package)
+    importlib.reload(packager)
 else:
-    from .lod import PaperAssetPackagerLODPanel
-    from .package import PackageOperator
-    
+    from .packager import *
+
 import bpy
-
-#----------UI PANEL----------#
-
-class PaperAssetPackagerPanel(bpy.types.Panel):
-    bl_category = "Paper"
-    bl_label = "Paper Asset Packager"
-    bl_idname = "paper.asset_packager_main_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-
-    def draw(self, context):
-        layout = self.layout
-
-        scene = context.scene
-        
-        # Big render button
-        layout.label(text="Package Scene:")
-        row = layout.row()
-        row.scale_y = 2.0
-        row.operator("paper.package_operator")
 
 
 #----------REGISTRATION----------#
 
-def register():
-    bpy.utils.register_class(PaperAssetPackagerLODPanel)
-    bpy.utils.register_class(PackageOperator)
-    bpy.utils.register_class(PaperAssetPackagerPanel)
+classes = (
+    package.PackageOperator,
+    package.PaperAssetPackagerPanel,
+    lod.PaperAssetPackagerLODPanel,
+    lod.PaperAssetPackagerLODList
+)
 
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
 
 def unregister():
-    bpy.utils.unregister_class(PaperAssetPackagerPanel)
-    bpy.utils.unregister_class(PackageOperator)
-    bpy.utils.unregister_class(PaperAssetPackagerLODPanel)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
 
 
 if __name__ == "__main__":
