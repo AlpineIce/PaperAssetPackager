@@ -1,0 +1,11 @@
+[package]
+name = "paper_asset_packager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+#gltf
+[dependencies.gltf]
+version = "1.4"
+features = ["extras", "names"]
