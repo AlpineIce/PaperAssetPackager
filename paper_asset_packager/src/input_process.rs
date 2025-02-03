@@ -1,45 +1,8 @@
 use std::{fs, ptr};
 
+use super::common;
+
 use gltf;
-
-pub struct MaterialMesh {
-    index_stride: u32,
-    index_data: Vec<u8>,
-    vertex_stride: u32,
-    vertex_data: Vec<u8>
-}
-
-pub struct LOD {
-    screen_size: f32, //values closer to 1 result in a sooner LOD change, values closer to 0 will result in a wider viewing range
-    meshes: Vec<MaterialMesh> //material index in order of vec indices
-    
-}
-
-pub struct AABB {
-    min_x: f32,
-    max_x: f32,
-    min_y: f32,
-    max_y: f32,
-    min_z: f32,
-    max_z: f32
-}
-
-impl AABB {
-    fn fit_to_max(&mut self, other: &AABB) {
-        self.min_x = f32::max(self.min_x, other.min_x);
-        self.max_x = f32::max(self.max_x, other.max_x);
-        self.min_y = f32::max(self.min_y, other.min_y);
-        self.max_y = f32::max(self.max_y, other.max_y);
-        self.min_z = f32::max(self.min_z, other.min_z);
-        self.max_z = f32::max(self.max_z, other.max_z);
-    }
-}
-
-pub struct ModelData {
-    model_name: String,
-    bounds: AABB,
-    lods: Vec<LOD>
-}
 
 struct VertexSizing {
     count: usize,
@@ -94,7 +57,7 @@ fn get_vertex_sizing(attributes: gltf::mesh::iter::Attributes, data_ptr: *const 
     })
 }
 
-pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
+pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<common::ModelData> {
     //process gltf
     let gltf_data = match gltf::import(file_dir) {
         Ok(v) => v,
@@ -120,7 +83,7 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
         }
 
         //initialize AABB
-        let mut aabb = AABB {
+        let mut aabb = common::AABB {
             min_x: 0.0,
             max_x: 0.0,
             min_y: 0.0,
@@ -130,7 +93,7 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
         };
         
         //initialize LOD data vec
-        let mut lods: Vec<LOD> = Vec::new();
+        let mut lods: Vec<common::LOD> = Vec::new();
     
         //iterate nodes (LODs in this context)
         for node in gltf_data.0.nodes() {
@@ -150,7 +113,7 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
             }
 
             //create list of meshes
-            let mut meshes: Vec<MaterialMesh> = Vec::new();
+            let mut meshes: Vec<common::MaterialMesh> = Vec::new();
             
             //iterate primitives
             for primitive in mesh.primitives() {
@@ -165,7 +128,7 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
                 
                 //AABB processing
                 let mesh_bounds = primitive.bounding_box();
-                let mesh_aabb = AABB {
+                let mesh_aabb = common::AABB {
                     min_x: mesh_bounds.min[0],
                     max_x: mesh_bounds.max[0],
                     min_y: mesh_bounds.min[1],
@@ -230,7 +193,7 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
                 }
 
                 //push back mesh
-                meshes.push(MaterialMesh {
+                meshes.push(common::MaterialMesh {
                     index_stride: index_stride as u32,
                     index_data: index_buffer,
                     vertex_stride: vertex_sizing.stride as u32,
@@ -239,13 +202,13 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
             }
 
             //add meshes to new LOD
-            lods.push( LOD {
+            lods.push(common::LOD {
                 screen_size: 1.0, //TODO
                 meshes: meshes
             });
         }
 
-        return Some(ModelData {
+        return Some(common::ModelData {
             model_name: model_name,
             bounds: aabb,
             lods: lods

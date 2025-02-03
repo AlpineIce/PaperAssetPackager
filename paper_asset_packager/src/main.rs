@@ -1,8 +1,8 @@
 use std::fs;
 
+pub mod common;
 pub mod input_process;
-pub mod log;
-
+pub mod output_process;
 
 fn main() {
     //verify directory exists
@@ -23,12 +23,18 @@ fn main() {
             Err(_err) => continue
         };
         
-        log::log(log::LogType::INFO, &file.path().display());
-        println!("{}", file.path().display());
+        println!("Reading file: {}", file.path().display());
 
         //process data
-        let model_data = input_process::process_glb(&file.path());
+        let model_data = match input_process::process_glb(&file.path()) {
+            Some(v) => v,
+            None => {
+                println!("Skipping file because it couldn't be loaded");
+                continue;
+            }
+        };
 
         //write data into binary blob
+        output_process::write_glb(model_data);
     }
 }
