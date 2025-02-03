@@ -1,19 +1,27 @@
-use std::{fs, io::Write, os::unix::fs::FileExt};
+use std::{fs, os::unix::fs::FileExt};
 
 pub mod common;
 pub mod input_process;
 pub mod output_process;
 
 struct PrbHeaderEntry {
-    id: u32,
-    offset: usize
+    _id: u64,
+    _offset: u64
+}
+
+impl PrbHeaderEntry {
+    pub fn as_slice(&self) -> &[u8; std::mem::size_of::<PrbHeaderEntry>()] {
+        unsafe {
+            &*(self as *const PrbHeaderEntry as *const [u8; std::mem::size_of::<PrbHeaderEntry>()])
+        }
+    }
 }
 
 fn main() {
     //create output directory
     let output_dir = "output";
     match fs::create_dir(output_dir) {
-        Ok(v) => println!("Created output directory"),
+        Ok(_v) => println!("Created output directory"),
         Err(_err) => {}
     };
 
@@ -37,9 +45,9 @@ fn main() {
     };
 
     //initialize offsets and entries
-    let mut data_offset = num_files * std::mem::size_of::<PrbHeaderEntry>();
-    let mut header_entries: Vec<PrbHeaderEntry> = Vec::new();
-    header_entries.reserve(num_files);
+    let mut header_offset = std::mem::size_of::<usize>() as u64; //first 8 bytes takes up number of entries
+    let mut data_offset = (num_files * std::mem::size_of::<PrbHeaderEntry>()) as u64 + header_offset;
+    let mut data_entries_count: u64 = 0;
 
     //iterate files
     for file_result in input_files {
@@ -61,17 +69,26 @@ fn main() {
         };
 
         //create header entry
-        header_entries.push( PrbHeaderEntry {
-            id: header_entries.len() as u32,
-            offset: header_entries.len() * std::mem::size_of::<PrbHeaderEntry>()
-        });
+        let header_entry = PrbHeaderEntry {
+            _id: data_entries_count,
+            _offset: data_offset as u64
+        };
+        data_entries_count += 1;
+
+        //write entry to file
+        match output_file.write_at(header_entry.as_slice(), header_offset) {
+            Ok(_v) => {},
+            Err(err) => panic!("Failed to write header entry to file with error: {}", err)
+        }
+        header_offset += std::mem::size_of::<PrbHeaderEntry>() as u64;
+
 
         //write data into binary blob
-        output_process::write_glb(&output_file, model_data);
+        data_offset += output_process::write_glb(&output_file, model_data, data_offset);
     }
 
     //write number of entries at start of file
-    match output_file.write_at(&num_files.to_be_bytes(), 0) {
+    match output_file.write_at(&data_entries_count.to_le_bytes(), 0) {
         Ok(_v) => {},
         Err(err) => panic!("Failed to write header entries with error: {}", err)
     }

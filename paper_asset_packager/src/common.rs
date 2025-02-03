@@ -35,3 +35,9 @@ pub struct ModelData {
     pub bounds: AABB,
     pub lods: Vec<LOD>
 }
+
+/*pub fn as_slice<T>(data: &T) -> &[u8; std::mem::size_of::<T>()] {
+    unsafe {
+        &*(data as *const [u8; std::mem::size_of::<T>(data)])
+    }
+}*/
