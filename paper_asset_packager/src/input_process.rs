@@ -24,24 +24,74 @@ pub struct AABB {
     max_z: f32
 }
 
+impl AABB {
+    fn fit_to_max(&mut self, other: &AABB) {
+        self.min_x = f32::max(self.min_x, other.min_x);
+        self.max_x = f32::max(self.max_x, other.max_x);
+        self.min_y = f32::max(self.min_y, other.min_y);
+        self.max_y = f32::max(self.max_y, other.max_y);
+        self.min_z = f32::max(self.min_z, other.min_z);
+        self.max_z = f32::max(self.max_z, other.max_z);
+    }
+}
+
 pub struct ModelData {
     model_name: String,
     bounds: AABB,
     lods: Vec<LOD>
 }
 
-//count, stride
-fn get_vertex_sizing(attributes: gltf::mesh::iter::Attributes) -> (u32, u32, Vec<u32>) {
-    let mut vertex_count: u32 = 0;
-    let mut vertex_stride: u32 = 0;
-    let mut offsets: Vec<u32> = Vec::new();
-    for attribute in attributes {
-        offsets.push(vertex_stride);
-        vertex_stride += attribute.1.data_type().size() as u32;
-        vertex_count = std::cmp::max(vertex_count, attribute.1.count() as u32);
+struct VertexSizing {
+    count: usize,
+    stride: usize,
+    offsets: Vec<usize>,
+    attribute_sizes: Vec<usize>,
+    pointers: Vec<*const u8>
+}
+
+impl VertexSizing {
+    fn get_bytes_size(&self) -> usize {
+        self.count * self.stride
+    }
+
+    fn get_indexed_attribute_location(&self, vertex: usize, attribute: usize) -> isize {
+        ((vertex * self.stride) + self.offsets[attribute]) as isize
     }
     
-    (vertex_count, vertex_stride, offsets)
+    fn get_location_ptr(&self, vertex: usize, attribute: usize) -> *const u8 {
+        unsafe { self.pointers[attribute].offset(self.get_indexed_attribute_location(vertex, attribute)) }
+    }
+}
+
+//count, stride
+fn get_vertex_sizing(attributes: gltf::mesh::iter::Attributes, data_ptr: *const u8) -> Option<VertexSizing> {
+    let mut vertex_count: usize = 0;
+    let mut vertex_stride: usize = 0;
+    let mut offsets: Vec<usize> = Vec::new();
+    let mut sizes: Vec<usize> = Vec::new();
+    let mut data_pointers: Vec<*const u8> = Vec::new();
+    for attribute in attributes {
+        //get buffer view
+        let view = match attribute.1.view() {
+            Some(v) => v,
+            None => return None
+        };
+        
+        //get vertex data offsets
+        offsets.push(vertex_stride);
+        sizes.push(attribute.1.data_type().size());
+        data_pointers.push(unsafe { data_ptr.offset(view.offset() as isize) });
+        vertex_stride += attribute.1.data_type().size();
+        vertex_count = std::cmp::max(vertex_count, attribute.1.count()); //not very elegant, -1000 aura
+    }
+    
+    Some(VertexSizing {
+        count: vertex_count,
+        stride: vertex_stride,
+        offsets: offsets,
+        attribute_sizes: sizes,
+        pointers: data_pointers
+    })
 }
 
 pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
@@ -68,6 +118,19 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
         if model_name == "Scene" {
             panic!("Please dont use default scene names");
         }
+
+        //initialize AABB
+        let mut aabb = AABB {
+            min_x: 0.0,
+            max_x: 0.0,
+            min_y: 0.0,
+            max_y: 0.0,
+            min_z: 0.0,
+            max_z: 0.0
+        };
+        
+        //initialize LOD data vec
+        let mut lods: Vec<LOD> = Vec::new();
     
         //iterate nodes (LODs in this context)
         for node in gltf_data.0.nodes() {
@@ -99,6 +162,18 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
 
                 //print material name
                 println!("    Processing LOD mesh on material: {}", mat_name);
+                
+                //AABB processing
+                let mesh_bounds = primitive.bounding_box();
+                let mesh_aabb = AABB {
+                    min_x: mesh_bounds.min[0],
+                    max_x: mesh_bounds.max[0],
+                    min_y: mesh_bounds.min[1],
+                    max_y: mesh_bounds.max[1],
+                    min_z: mesh_bounds.min[2],
+                    max_z: mesh_bounds.max[2]
+                };
+                aabb.fit_to_max(&mesh_aabb);
 
                 //get index accessor
                 let indices_access = match primitive.indices() {
@@ -125,62 +200,56 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<ModelData> {
 
                 //create index buffer
                 let mut index_buffer: Vec<u8> = vec![0; index_count * index_stride];
-                let a = index_buffer.as_ptr();
 
                 //copy data into index buffer
                 unsafe { ptr::copy_nonoverlapping(data_ptr.offset(indices_buffer_offset as isize), index_buffer.as_mut_ptr(), index_buffer.len()) };
 
                 //initialize vertex buffer and sizes
-                let (vertex_count, vertex_stride, offsets) = get_vertex_sizing(primitive.attributes());
-                let mut vertex_buffer: Vec<u8> = vec![0; (vertex_count * vertex_stride) as usize];
+                let vertex_sizing = match get_vertex_sizing(primitive.attributes(), data_ptr) {
+                    Some(v) => v,
+                    None => {
+                        println!("  Skipping primitive with no vertex data view");
+                        continue;
+                    }
+                };
+                let mut vertex_buffer: Vec<u8> = vec![0; vertex_sizing.get_bytes_size()];
 
+                //let (a, b) = (index_buffer.as_ptr(), vertex_buffer.as_ptr()); //debug helper line
+                
                 //get attributes
-                for index in 0..vertex_count - 1 {
-                    //probaby time to commit this stuff
+                for i in 0..vertex_sizing.count {
+                    for j in 0..vertex_sizing.offsets.len() {
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                vertex_sizing.get_location_ptr(i, j),
+                                vertex_buffer.as_mut_ptr().offset(vertex_sizing.get_indexed_attribute_location(i, j)),
+                                vertex_sizing.attribute_sizes[j]
+                            );
+                        }
+                    }
                 }
 
                 //push back mesh
                 meshes.push(MaterialMesh {
                     index_stride: index_stride as u32,
                     index_data: index_buffer,
-                    vertex_stride: vertex_stride,
+                    vertex_stride: vertex_sizing.stride as u32,
                     vertex_data: vertex_buffer
                 });
             }
+
+            //add meshes to new LOD
+            lods.push( LOD {
+                screen_size: 1.0, //TODO
+                meshes: meshes
+            });
         }
-    }
 
-    //iterate meshes (LODs in this context)
-    for mesh in gltf_data.0.meshes() {
-        
-
-        //get primitive data
-        for primitive in mesh.primitives() {
-            let material_index = match primitive.material().index() {
-                Some(v) => v,
-                None => 0
-            };
-            let bounds = primitive.bounding_box();
-            for attribute in primitive.attributes() {
-                let data_type = attribute.1.data_type();
-                let size = attribute.1.size();
-
-                let a = match attribute.1.view() {
-                    Some(v) => v,
-                    None => continue
-                };
-
-            }
-
-            let aabb = AABB {
-                min_x: bounds.min[0],
-                max_x: bounds.max[0],
-                min_y: bounds.min[1],
-                max_y: bounds.max[1],
-                min_z: bounds.min[2],
-                max_z: bounds.max[2]
-            };
-        }
+        return Some(ModelData {
+            model_name: model_name,
+            bounds: aabb,
+            lods: lods
+        })
     }
 
     None
