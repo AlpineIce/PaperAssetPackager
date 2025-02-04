@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+
 use std::{fs, os::unix::fs::FileExt};
 
 pub mod common;
@@ -7,14 +9,6 @@ pub mod output_process;
 struct PrbHeaderEntry {
     _id: u64,
     _offset: u64
-}
-
-impl PrbHeaderEntry {
-    pub fn as_slice(&self) -> &[u8; std::mem::size_of::<PrbHeaderEntry>()] {
-        unsafe {
-            &*(self as *const PrbHeaderEntry as *const [u8; std::mem::size_of::<PrbHeaderEntry>()])
-        }
-    }
 }
 
 fn main() {
@@ -76,7 +70,7 @@ fn main() {
         data_entries_count += 1;
 
         //write entry to file
-        match output_file.write_at(header_entry.as_slice(), header_offset) {
+        match output_file.write_at(common::as_slice::<PrbHeaderEntry>(&header_entry), header_offset) {
             Ok(_v) => {},
             Err(err) => panic!("Failed to write header entry to file with error: {}", err)
         }
@@ -84,7 +78,7 @@ fn main() {
 
 
         //write data into binary blob
-        data_offset += output_process::write_glb(&output_file, model_data, data_offset);
+        output_process::write_glb(&output_file, model_data, &mut data_offset);
     }
 
     //write number of entries at start of file

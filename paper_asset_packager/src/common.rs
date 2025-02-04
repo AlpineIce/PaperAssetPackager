@@ -10,6 +10,7 @@ pub struct LOD {
     pub meshes: Vec<MaterialMesh> //material index in order of vec indices
 }
 
+#[repr(C)]
 pub struct AABB {
     pub min_x: f32,
     pub max_x: f32,
@@ -36,8 +37,8 @@ pub struct ModelData {
     pub lods: Vec<LOD>
 }
 
-/*pub fn as_slice<T>(data: &T) -> &[u8; std::mem::size_of::<T>()] {
+pub fn as_slice<T>(data: &T) -> &[u8; std::mem::size_of::<T>()] {
     unsafe {
-        &*(data as *const [u8; std::mem::size_of::<T>(data)])
+        &*(data as *const T as *const [u8; std::mem::size_of::<T>()])
     }
-}*/
+}
