@@ -93,7 +93,7 @@ pub fn write_glb(file: &fs::File, mut model_data: common::ModelData, offset: &mu
         let lod_write_data = LODWriteData {
             screen_size: model_data.lods[lod_index].screen_size,
             mesh_count: model_data.lods[lod_index].meshes.len() as u32,
-            meshes_location: *offset
+            meshes_location: mesh_data_location
         };
 
         //write LOD data
