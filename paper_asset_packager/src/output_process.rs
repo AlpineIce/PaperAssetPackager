@@ -8,7 +8,8 @@ struct MeshWriteData {
     vbo_offset: u64,
     ibo_offset: u64,
     vbo_size: u64,
-    ibo_size: u64
+    ibo_size: u64,
+    invoke_any_hit: u64 //acts like bool
 }
 
 #[repr(C)]
@@ -76,7 +77,8 @@ pub fn write_glb(file: &fs::File, mut model_data: common::ModelData, offset: &mu
                 vbo_offset: vb.len() as u64,
                 ibo_offset: ib.len() as u64,
                 vbo_size: model_data.lods[lod_index].meshes[mesh_index].vertex_data.len() as u64,
-                ibo_size: model_data.lods[lod_index].meshes[mesh_index].index_data.len() as u64
+                ibo_size: model_data.lods[lod_index].meshes[mesh_index].index_data.len() as u64,
+                invoke_any_hit: model_data.lods[lod_index].meshes[mesh_index].invoke_any_hit as u64
             };
 
             //write mesh data

@@ -2,7 +2,8 @@ pub struct MaterialMesh {
     pub index_stride: u32,
     pub index_data: Vec<u8>,
     pub vertex_stride: u32,
-    pub vertex_data: Vec<u8>
+    pub vertex_data: Vec<u8>,
+    pub invoke_any_hit: bool
 }
 
 pub struct LOD {

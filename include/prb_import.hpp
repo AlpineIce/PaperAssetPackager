@@ -25,6 +25,7 @@ namespace PaperAssetPackager
         uint64_t ibo_offset = 0;
         uint64_t vbo_size = 0;
         uint64_t ibo_size = 0;
+        uint64_t invoke_any_hit = 0; //treat this as a bool
     };
 
     struct LODData

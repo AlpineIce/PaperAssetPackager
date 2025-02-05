@@ -1,4 +1,4 @@
-use std::ptr;
+use std::{default, ptr};
 
 use super::common;
 
@@ -122,6 +122,10 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<common::ModelData> {
                     Some(v) => v,
                     None => "Untitled"
                 };
+                let invoke_any_hit = match primitive.material().alpha_mode() {
+                    gltf::material::AlphaMode::Opaque => false,
+                    _default => true
+                };
 
                 //print material name
                 println!("    Processing LOD mesh on material: {}", mat_name);
@@ -197,7 +201,8 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<common::ModelData> {
                     index_stride: index_stride as u32,
                     index_data: index_buffer,
                     vertex_stride: vertex_sizing.stride as u32,
-                    vertex_data: vertex_buffer
+                    vertex_data: vertex_buffer,
+                    invoke_any_hit: invoke_any_hit
                 });
             }
 
