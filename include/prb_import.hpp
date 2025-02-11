@@ -17,27 +17,23 @@ namespace PaperAssetPackager
         float min_z = 0.0f;
     };
 
-    struct MeshData
+    struct Mesh
     {
         uint32_t vertex_stride = 0;
+        std::vector<char> vertex_data = {};
         uint32_t index_stride = 0;
-        uint64_t vbo_offset = 0;
-        uint64_t ibo_offset = 0;
-        uint64_t vbo_size = 0;
-        uint64_t ibo_size = 0;
+        std::vector<char> index_data = {};
         uint64_t invoke_any_hit = 0; //treat this as a bool
     };
 
     struct LODData
     {
         float screen_size = 0;
-        std::vector<MeshData> meshes = {};
+        std::vector<Mesh> meshes = {};
     };
 
     struct ModelData
     {
-        std::vector<char> vertex_data = {};
-        std::vector<char> index_data = {};
         std::vector<LODData> lods = {};
         std::string model_name = "";
         AABB aabb = {};
@@ -115,44 +111,57 @@ namespace PaperAssetPackager
                 
                 //iterate meshes
                 const uint64_t mesh_offset = lod_read_data.meshes_location;
-                std::vector<MeshData> meshes = {};
+                std::vector<Mesh> meshes = {};
                 meshes.reserve(lod_read_data.mesh_count);
                 for(uint32_t mesh_index = 0; mesh_index < lod_read_data.mesh_count; mesh_index++)
                 {
-                    //read mesh data
-                    MeshData mesh_data = {};
+                    //read mesh data 
+                    struct MeshData
+                    {
+                        uint32_t vertex_stride = 0;
+                        uint32_t index_stride = 0;
+                        uint64_t vbo_offset = 0;
+                        uint64_t ibo_offset = 0;
+                        uint64_t vbo_size = 0;
+                        uint64_t ibo_size = 0;
+                        uint64_t invoke_any_hit = 0; //treat this as a bool
+                    } mesh_data = {};
                     file.seekg(mesh_offset + (mesh_index * sizeof(MeshData)));
                     file.read((char*)&mesh_data, sizeof(MeshData));
 
+                    //get vertex buffer
+                    std::vector<char> vertex_buffer(mesh_data.vbo_size);
+                    file.seekg(model_read_data.vb_location + mesh_data.vbo_offset);
+                    file.read(vertex_buffer.data(), vertex_buffer.size());
+
+                    //get index buffer
+                    std::vector<char> index_buffer(mesh_data.ibo_size);
+                    file.seekg(model_read_data.ib_location + mesh_data.ibo_offset);
+                    file.read(index_buffer.data(), index_buffer.size());
+
                     //push back mesh
-                    meshes.push_back(mesh_data);
+                    meshes.emplace_back(
+                        mesh_data.vertex_stride,
+                        std::move(vertex_buffer),
+                        mesh_data.index_stride,
+                        std::move(index_buffer),
+                        mesh_data.invoke_any_hit
+                    );
                 }
 
                 //push back lod
-                lods.push_back({
-                    .screen_size = lod_read_data.screen_size,
-                    .meshes = std::move(meshes)
-                });
+                lods.emplace_back(
+                    lod_read_data.screen_size,
+                    std::move(meshes)
+                );
             }
 
-            //get vertex buffer
-            std::vector<char> vertex_buffer(model_read_data.vb_size);
-            file.seekg(model_read_data.vb_location);
-            file.read(vertex_buffer.data(), vertex_buffer.size());
-
-            //get index buffer
-            std::vector<char> index_buffer(model_read_data.ib_size);
-            file.seekg(model_read_data.ib_location);
-            file.read(index_buffer.data(), index_buffer.size());
-
             //push back model data
-            return_data.push_back({
-                .vertex_data = std::move(vertex_buffer),
-                .index_data = std::move(index_buffer),
-                .lods = std::move(lods),
-                .model_name = std::move(model_name),
-                .aabb = model_read_data.aabb
-            });
+            return_data.emplace_back(
+                std::move(lods),
+                std::move(model_name),
+                model_read_data.aabb
+            );
         }
 
         return return_data;
