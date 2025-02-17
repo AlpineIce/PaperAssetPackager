@@ -36,6 +36,7 @@ namespace PaperAssetPackager
     {
         std::vector<LODData> lods = {};
         std::string model_name = "";
+        uint64_t id = 0xFFFFFFFFFFFFFFFF;
         AABB aabb = {};
     };
 
@@ -160,6 +161,7 @@ namespace PaperAssetPackager
             return_data.emplace_back(
                 std::move(lods),
                 std::move(model_name),
+                header_entry.id,
                 model_read_data.aabb
             );
         }
