@@ -41,14 +41,14 @@ namespace PaperAssetPackager
         AABB aabb = {};
     };
 
-    //wrapper around prb file
-    struct PaperBinary
+    //Wrapper around prb file. Good strategy for multithreaded loading would to be to create multiple of these
+    struct PaperBinaryFile
     {
         std::ifstream file;
     };
 
     //Returns PaperBinary if file is valid. Return value should be verified
-    std::optional<PaperBinary> get_paper_binary(const char* path) noexcept
+    std::optional<PaperBinaryFile> get_paper_binary(const char* path) noexcept
     {
         std::ifstream file(path, std::ios::binary | std::ios::ate);
 
@@ -58,12 +58,12 @@ namespace PaperAssetPackager
         }
         else
         {
-            return std::optional<PaperBinary>({ std::move(file) });
+            return std::optional<PaperBinaryFile>({ std::move(file) });
         }
     }
 
     //Get the model entry count of the file
-    uint64_t get_entry_count(PaperBinary& prb) noexcept
+    uint64_t get_entry_count(PaperBinaryFile& prb) noexcept
     {
         //set pointer to 0
         prb.file.seekg(0);
@@ -76,7 +76,7 @@ namespace PaperAssetPackager
     }
 
     //Function for loading a single model based on a known index. Returns nullopt if index does not exist
-    std::optional<ModelData> load_model(PaperBinary& prb, uint64_t index) noexcept
+    std::optional<ModelData> load_model(PaperBinaryFile& prb, uint64_t index) noexcept
     {
         //return if index is greater than or equal to entry count
         if(get_entry_count(prb) <= index)
@@ -188,7 +188,7 @@ namespace PaperAssetPackager
         });
     }
 
-    std::vector<ModelData> get_all_model_data(PaperBinary& prb) noexcept
+    std::vector<ModelData> get_all_model_data(PaperBinaryFile& prb) noexcept
     {
         //get entry count
         const uint64_t entry_count = get_entry_count(prb);
