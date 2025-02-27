@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <optional>
+#include <memory>
 
 namespace PaperAssetPackager
 {
@@ -41,45 +42,39 @@ namespace PaperAssetPackager
         AABB aabb = {};
     };
 
-    //Wrapper around prb file. Good strategy for multithreaded loading would to be to create multiple of these
-    struct PaperBinaryFile
+    //Returns PaperBinary if file is valid, otherwise NULL
+    std::unique_ptr<std::ifstream> get_paper_binary(const char* path) noexcept
     {
-        std::ifstream file;
-    };
+        std::unique_ptr<std::ifstream> file = std::make_unique<std::ifstream>(path, std::ios::binary | std::ios::ate);
 
-    //Returns PaperBinary if file is valid. Return value should be verified
-    std::optional<PaperBinaryFile> get_paper_binary(const char* path) noexcept
-    {
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-
-        if(!file)
+        if(!*file)
         {
-            return std::nullopt;
+            return NULL;
         }
         else
         {
-            return std::optional<PaperBinaryFile>({ std::move(file) });
+            return std::move(file);
         }
     }
 
     //Get the model entry count of the file
-    uint64_t get_entry_count(PaperBinaryFile& prb) noexcept
+    uint64_t get_entry_count(std::ifstream& file) noexcept
     {
         //set pointer to 0
-        prb.file.seekg(0);
+        file.seekg(0);
 
         //read entry count
         uint64_t entry_count = 0;
-        prb.file.read((char*)&entry_count, 8);
+        file.read((char*)&entry_count, 8);
 
         return entry_count;
     }
 
     //Function for loading a single model based on a known index. Returns nullopt if index does not exist
-    std::optional<ModelData> load_model(PaperBinaryFile& prb, uint64_t index) noexcept
+    std::optional<ModelData> load_model(std::ifstream& file, uint64_t index) noexcept
     {
         //return if index is greater than or equal to entry count
-        if(get_entry_count(prb) <= index)
+        if(get_entry_count(file) <= index)
         {
             return std::nullopt;
         }
@@ -93,8 +88,8 @@ namespace PaperAssetPackager
             uint64_t id = 0;
             uint64_t offset = 0;
         } header_entry = {};
-        prb.file.seekg(entry_offset + (index * sizeof(PrbHeaderEntry)));
-        prb.file.read((char*)&header_entry, sizeof(PrbHeaderEntry));
+        file.seekg(entry_offset + (index * sizeof(PrbHeaderEntry)));
+        file.read((char*)&header_entry, sizeof(PrbHeaderEntry));
 
         //read model data
         struct ModelReadData
@@ -108,13 +103,13 @@ namespace PaperAssetPackager
             uint64_t name_size = 0;
             AABB aabb = {};
         } model_read_data = {};
-        prb.file.seekg(header_entry.offset);
-        prb.file.read((char*)&model_read_data, sizeof(ModelReadData));
+        file.seekg(header_entry.offset);
+        file.read((char*)&model_read_data, sizeof(ModelReadData));
 
         //read model name
         std::string model_name(model_read_data.name_size, 0);
-        prb.file.seekg(header_entry.offset + sizeof(ModelReadData));
-        prb.file.read(model_name.data(), model_name.size());
+        file.seekg(header_entry.offset + sizeof(ModelReadData));
+        file.read(model_name.data(), model_name.size());
         
         //iterate LODs
         const uint64_t lod_offset = model_read_data.lods_location;
@@ -129,8 +124,8 @@ namespace PaperAssetPackager
                 uint32_t mesh_count;
                 uint64_t meshes_location;
             } lod_read_data = {};
-            prb.file.seekg(lod_offset + (lod_index * sizeof(LODReadData)));
-            prb.file.read((char*)&lod_read_data, sizeof(LODReadData));
+            file.seekg(lod_offset + (lod_index * sizeof(LODReadData)));
+            file.read((char*)&lod_read_data, sizeof(LODReadData));
             
             //iterate meshes
             const uint64_t mesh_offset = lod_read_data.meshes_location;
@@ -149,18 +144,18 @@ namespace PaperAssetPackager
                     uint64_t ibo_size = 0;
                     uint64_t invoke_any_hit = 0; //treat this as a bool
                 } mesh_data = {};
-                prb.file.seekg(mesh_offset + (mesh_index * sizeof(MeshData)));
-                prb.file.read((char*)&mesh_data, sizeof(MeshData));
+                file.seekg(mesh_offset + (mesh_index * sizeof(MeshData)));
+                file.read((char*)&mesh_data, sizeof(MeshData));
 
                 //get vertex buffer
                 std::vector<char> vertex_buffer(mesh_data.vbo_size);
-                prb.file.seekg(model_read_data.vb_location + mesh_data.vbo_offset);
-                prb.file.read(vertex_buffer.data(), vertex_buffer.size());
+                file.seekg(model_read_data.vb_location + mesh_data.vbo_offset);
+                file.read(vertex_buffer.data(), vertex_buffer.size());
 
                 //get index buffer
                 std::vector<char> index_buffer(mesh_data.ibo_size);
-                prb.file.seekg(model_read_data.ib_location + mesh_data.ibo_offset);
-                prb.file.read(index_buffer.data(), index_buffer.size());
+                file.seekg(model_read_data.ib_location + mesh_data.ibo_offset);
+                file.read(index_buffer.data(), index_buffer.size());
 
                 //push back mesh
                 meshes.emplace_back(
@@ -188,10 +183,10 @@ namespace PaperAssetPackager
         });
     }
 
-    std::vector<ModelData> get_all_model_data(PaperBinaryFile& prb) noexcept
+    std::vector<ModelData> get_all_model_data(std::ifstream& file) noexcept
     {
         //get entry count
-        const uint64_t entry_count = get_entry_count(prb);
+        const uint64_t entry_count = get_entry_count(file);
 
         //initialize return data
         std::vector<ModelData> return_data = {};
@@ -200,7 +195,7 @@ namespace PaperAssetPackager
         //read all prb file entries
         for(uint64_t i = 0; i < entry_count; i++)
         {
-            std::optional<ModelData> model_data = load_model(prb, i);
+            std::optional<ModelData> model_data = load_model(file, i);
 
             if(model_data.has_value())
             {
