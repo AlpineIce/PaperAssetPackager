@@ -9,3 +9,8 @@ edition = "2021"
 [dependencies.gltf]
 version = "1.4"
 features = ["extras", "names"]
+
+#json
+[dependencies.serde_json]
+version = "1.0"
+
