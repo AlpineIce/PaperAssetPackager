@@ -4,6 +4,7 @@ use serde_json::Value;
 use super::common;
 
 use gltf;
+use gltf::json;
 
 struct VertexSizing {
     count: usize,
@@ -250,6 +251,25 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<common::ModelData> {
                         );
                     }
                 }
+            }
+            
+            /*
+            VK_PRIMITIVE_TOPOLOGY_POINT_LIST = 0,
+            VK_PRIMITIVE_TOPOLOGY_LINE_LIST = 1,
+            VK_PRIMITIVE_TOPOLOGY_LINE_STRIP = 2,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST = 3,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP = 4,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN = 5,
+            VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY = 6,
+            VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY = 7,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY = 8,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY = 9,
+            VK_PRIMITIVE_TOPOLOGY_PATCH_LIST = 10,
+            */
+
+            //verify topology type is triangles as that is all that is currently supported
+            if primitive.mode() != gltf::json::mesh::Mode::Triangles {
+                panic!("Primitive type on this mesh is not triangles, which cannot be handled by Paper Renderer");
             }
 
             //push back mesh
