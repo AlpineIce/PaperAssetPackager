@@ -122,10 +122,10 @@ pub fn process_glb(file_dir: &std::path::PathBuf) -> Option<common::ModelData> {
     };
 
     //use scene name as model name
-    let model_name: String = match scene.name() {
-        Some(v) => v,
-        None => "Untitled"
-    }.to_string();
+    let model_name: String = match std::path::Path::file_stem(file_dir) {
+        Some(v) => v.to_str().expect("Failed to grab model name from PathBuf").to_string(),
+        None => panic!("Failed to grab model name from PathBuf")
+    };
 
     //print scene name
     println!("Input processing: {}", model_name);
