@@ -6,6 +6,7 @@
 #include <fstream>
 #include <optional>
 #include <memory>
+#include <unordered_map>
 
 namespace PaperAssetPackager
 {
@@ -69,27 +70,8 @@ namespace PaperAssetPackager
         return entry_count;
     }
 
-    //Function for loading a single model based on a known index. Returns nullopt if index does not exist
-    std::optional<ModelData> load_model(std::ifstream& file, uint64_t index) noexcept
+    struct ModelHeader
     {
-        //return if index is greater than or equal to entry count
-        if(get_entry_count(file) <= index)
-        {
-            return std::nullopt;
-        }
-
-        //helper variable
-        constexpr uint64_t entry_offset = 8;
-
-        //read entry
-        struct PrbHeaderEntry
-        {
-            uint64_t offset = 0;
-        } header_entry = {};
-        file.seekg(entry_offset + (index * sizeof(PrbHeaderEntry)));
-        file.read((char*)&header_entry, sizeof(PrbHeaderEntry));
-
-        //read model data
         struct ModelReadData
         {
             uint64_t vb_location = 0;
@@ -101,19 +83,74 @@ namespace PaperAssetPackager
             uint64_t name_size = 0;
             AABB aabb = {};
         } model_read_data = {};
+        std::string model_name;
+    };
+
+    ModelHeader get_model_header(std::ifstream& file, uint64_t index) noexcept
+    {
+        //helper variable
+        constexpr uint64_t entry_offset = 8;
+
+        //read entry
+        struct PrbHeaderEntry
+        {
+            uint64_t offset = 0;
+        } header_entry = {};
+        file.seekg(entry_offset + (index * sizeof(PrbHeaderEntry)));
+        file.read((char*)&header_entry, sizeof(PrbHeaderEntry));
+
+        //initialize data
+        ModelHeader model_header = {};
+
+        //read fixed size data
         file.seekg(header_entry.offset);
-        file.read((char*)&model_read_data, sizeof(ModelReadData));
+        file.read((char*)&model_header.model_read_data, sizeof(ModelHeader::ModelReadData));
 
         //read model name
-        std::string model_name(model_read_data.name_size, 0);
-        file.seekg(header_entry.offset + sizeof(ModelReadData));
-        file.read(model_name.data(), model_name.size());
+        model_header.model_name.resize(model_header.model_read_data.name_size, 0);
+        file.seekg(header_entry.offset + sizeof(ModelHeader::ModelReadData));
+        file.read(model_header.model_name.data(), model_header.model_name.size());
+
+        //return
+        return model_header;
+    }
+
+    //returns an unordered_map of <model_name, index>
+    std::unordered_map<std::string, uint64_t> get_model_name_indices(std::ifstream& file) noexcept
+    {
+        //get entry count
+        const uint64_t entry_count = get_entry_count(file);
+
+        //initialize return data
+        std::unordered_map<std::string, uint64_t> return_data = {};
+        return_data.reserve(entry_count);
+
+        //get all model headers and add name to map
+        for(uint64_t i = 0; i < entry_count; i++)
+        {
+            return_data[get_model_header(file, i).model_name] = i;
+        }
+
+        //return
+        return return_data;
+    }
+
+    //Function for loading a single model based on a known index. Returns nullopt if index does not exist
+    std::optional<ModelData> load_model(std::ifstream& file, uint64_t index) noexcept
+    {
+        //return if index is greater than or equal to entry count
+        if(get_entry_count(file) <= index)
+        {
+            return std::nullopt;
+        }
+
+        const ModelHeader model_header = get_model_header(file, index);
         
         //iterate LODs
-        const uint64_t lod_offset = model_read_data.lods_location;
+        const uint64_t lod_offset = model_header.model_read_data.lods_location;
         std::vector<LODData> lods = {};
-        lods.reserve(model_read_data.lod_count);
-        for(uint32_t lod_index = 0; lod_index < model_read_data.lod_count; lod_index++)
+        lods.reserve(model_header.model_read_data.lod_count);
+        for(uint32_t lod_index = 0; lod_index < model_header.model_read_data.lod_count; lod_index++)
         {
             //read LOD data
             struct LODReadData
@@ -147,12 +184,12 @@ namespace PaperAssetPackager
 
                 //get vertex buffer
                 std::vector<char> vertex_buffer(mesh_data.vbo_size);
-                file.seekg(model_read_data.vb_location + mesh_data.vbo_offset);
+                file.seekg(model_header.model_read_data.vb_location + mesh_data.vbo_offset);
                 file.read(vertex_buffer.data(), vertex_buffer.size());
 
                 //get index buffer
                 std::vector<char> index_buffer(mesh_data.ibo_size);
-                file.seekg(model_read_data.ib_location + mesh_data.ibo_offset);
+                file.seekg(model_header.model_read_data.ib_location + mesh_data.ibo_offset);
                 file.read(index_buffer.data(), index_buffer.size());
 
                 //push back mesh
@@ -175,8 +212,8 @@ namespace PaperAssetPackager
         //push back model data
         return std::optional<ModelData>({
             std::move(lods),
-            std::move(model_name),
-            model_read_data.aabb
+            std::move(model_header.model_name),
+            model_header.model_read_data.aabb
         });
     }
 

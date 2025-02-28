@@ -8,6 +8,7 @@ int main()
     
     if(file)
     {
+        const std::unordered_map<std::string, uint64_t> model_names = PaperAssetPackager::get_model_name_indices(*file);
         const std::vector<PaperAssetPackager::ModelData> model_data = PaperAssetPackager::get_all_model_data(*file);
     }
 
