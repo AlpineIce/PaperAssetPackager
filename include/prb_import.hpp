@@ -38,7 +38,6 @@ namespace PaperAssetPackager
     {
         std::vector<LODData> lods = {};
         std::string model_name = "";
-        uint64_t id = 0xFFFFFFFFFFFFFFFF;
         AABB aabb = {};
     };
 
@@ -85,7 +84,6 @@ namespace PaperAssetPackager
         //read entry
         struct PrbHeaderEntry
         {
-            uint64_t id = 0;
             uint64_t offset = 0;
         } header_entry = {};
         file.seekg(entry_offset + (index * sizeof(PrbHeaderEntry)));
@@ -178,7 +176,6 @@ namespace PaperAssetPackager
         return std::optional<ModelData>({
             std::move(lods),
             std::move(model_name),
-            header_entry.id,
             model_read_data.aabb
         });
     }

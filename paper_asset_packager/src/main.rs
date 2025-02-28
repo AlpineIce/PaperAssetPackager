@@ -7,7 +7,6 @@ pub mod input_process;
 pub mod output_process;
 
 struct PrbHeaderEntry {
-    _id: u64,
     _offset: u64
 }
 
@@ -64,7 +63,6 @@ fn main() {
 
         //create header entry
         let header_entry = PrbHeaderEntry {
-            _id: data_entries_count,
             _offset: data_offset as u64
         };
         data_entries_count += 1;

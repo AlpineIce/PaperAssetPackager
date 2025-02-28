@@ -4,7 +4,12 @@
 
 int main()
 {
-    const std::vector<PaperAssetPackager::ModelData> model_data = PaperAssetPackager::get_model_data("output.prb");
+    std::unique_ptr<std::ifstream> file = PaperAssetPackager::get_paper_binary("../../paper_asset_packager/output/output.prb");
+    
+    if(file)
+    {
+        const std::vector<PaperAssetPackager::ModelData> model_data = PaperAssetPackager::get_all_model_data(*file);
+    }
 
     return 0;
 }
